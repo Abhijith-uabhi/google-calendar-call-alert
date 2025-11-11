@@ -2,6 +2,8 @@
 'use client';
 
 import { useState } from 'react';
+import { signIn } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,17 +13,29 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const router = useRouter();
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError('');
     
     try {
-      // Add your email/password authentication logic here
-      console.log('Email login:', { email, password });
-      // Example: await signIn('credentials', { email, password });
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError('Invalid email or password');
+      } else if (result?.ok) {
+        router.push('/dashboard');
+      }
     } catch (error) {
       console.error('Login error:', error);
+      setError('Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -29,14 +43,17 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
+    setError('');
     
     try {
-      // Add your Google OAuth logic here
-      console.log('Google login initiated');
-      // Example: await signIn('google', { callbackUrl: '/' });
+      // Trigger Google OAuth flow
+      await signIn('google', {
+        callbackUrl: '/dashboard', // Redirect to dashboard after successful login
+        redirect: true,
+      });
     } catch (error) {
       console.error('Google login error:', error);
-    } finally {
+      setError('Failed to sign in with Google');
       setIsLoading(false);
     }
   };
@@ -51,6 +68,12 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {error && (
+            <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm">
+              {error}
+            </div>
+          )}
+
           <Button
             variant="outline"
             className="w-full"
