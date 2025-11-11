@@ -43,7 +43,7 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
-    setError('');
+    setError(''); 
     
     try {
       // Trigger Google OAuth flow
