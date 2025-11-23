@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+
 export async function GET() {
   try {
     const users = await prisma.user.findMany()
@@ -14,6 +15,8 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
+    console.log("THE BODY ", body);
+
     const user = await prisma.user.create({
       data: {
         email: body.email,
@@ -25,3 +28,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to create user' }, { status: 500 })
   }
 }
+
+
+

@@ -1,169 +1,267 @@
+// app/dashboard/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
-import { signOut, useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Calendar, Phone, CheckCircle2, AlertCircle, LogOut } from 'lucide-react';
 
-export default function Dashboard() {
-    const router = useRouter();
-    const { data: session, status } = useSession();
-    const [isSigningOut, setIsSigningOut] = useState(false);
+export default function DashboardPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
 
-    const handleSignOut = async () => {
-        setIsSigningOut(true);
-        try {
-            await signOut({
-                callbackUrl: '/login',
-                redirect: true,
-            });
-        } catch (error) {
-            console.error('Sign out error:', error);
-            setIsSigningOut(false);
-        }
-    };
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/');
+    }
+  }, [status, router]);
 
-    // Show loading state while checking authentication
-    if (!status || status === 'loading') {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 dark:border-slate-100 mx-auto"></div>
-                    <p className="mt-4 text-slate-600 dark:text-slate-400">Loading...</p>
-                </div>
-            </div>
-        );
+  useEffect(() => {
+    if (status === 'authenticated') {
+      fetchUserData();
+      fetchUpcomingEvents();
+    }
+  }, [status]);
+
+  const fetchUserData = async () => {
+    try {
+      const res = await fetch('/api/users/profile');
+      if (res.ok) {
+        const data = await res.json();
+        setPhoneNumber(data.phoneNumber || '');
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    }
+  };
+
+  const fetchUpcomingEvents = async () => {
+    try {
+      setLoadingEvents(true);
+      const res = await fetch('/api/calendar/upcoming');
+      if (res.ok) {
+        const data = await res.json();
+        setUpcomingEvents(data.events || []);
+      }
+    } catch (error) {
+      console.error('Error fetching events:', error);
+    } finally {
+      setLoadingEvents(false);
+    }
+  };
+
+  const handleSavePhoneNumber = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage(null);
+
+    // Validate phone number format
+    const phoneRegex = /^\+[1-9]\d{1,14}$/;
+    if (!phoneRegex.test(phoneNumber)) {
+      setMessage({
+        type: 'error',
+        text: 'Please enter a valid phone number in E.164 format (e.g., +1234567890)',
+      });
+      setLoading(false);
+      return;
     }
 
+    try {
+      const res = await fetch('/api/users/phone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setMessage({ type: 'success', text: 'Phone number saved successfully!' });
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to save phone number' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'An error occurred. Please try again.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatEventTime = (dateTime: string) => {
+    return new Date(dateTime).toLocaleString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
+  if (status === 'loading') {
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-            {/* Header */}
-            <header className="bg-white dark:bg-slate-900 shadow">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Dashboard</h1>
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-3">
-                            {session?.user?.image && (
-                                <img
-                                    src={session.user.image}
-                                    alt={session.user.name || 'User'}
-                                    className="w-10 h-10 rounded-full border-2 border-slate-200 dark:border-slate-700"
-                                />
-                            )}
-                            <div className="text-right">
-                                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                                    {session?.user?.name || 'User'}
-                                </p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    {session?.user?.email}
-                                </p>
-                            </div>
-                        </div>
-                        <Button
-                            onClick={handleSignOut}
-                            disabled={isSigningOut}
-                            variant="destructive"
-                        >
-                            {isSigningOut ? 'Signing out...' : 'Sign Out'}
-                        </Button>
-                    </div>
-                </div>
-            </header>
-
-            {/* Main Content */}
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Welcome Section */}
-                <Card className="mb-6">
-                    <CardContent className="pt-6">
-                        <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
-                            Welcome back, {session?.user?.name?.split(' ')[0] || 'User'}! 👋
-                        </h2>
-                        <p className="text-slate-600 dark:text-slate-400">
-                            Here's what's happening with your account today.
-                        </p>
-                    </CardContent>
-                </Card>
-
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                                Total Users
-                            </CardTitle>
-                            <div className="bg-blue-100 dark:bg-blue-900/20 p-2 rounded-full">
-                                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                </svg>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-bold text-slate-900 dark:text-slate-100">1,234</div>
-                            <p className="text-sm text-green-600 dark:text-green-400 mt-1">↑ 12% from last month</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                                Revenue
-                            </CardTitle>
-                            <div className="bg-green-100 dark:bg-green-900/20 p-2 rounded-full">
-                                <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-bold text-slate-900 dark:text-slate-100">$45,231</div>
-                            <p className="text-sm text-green-600 dark:text-green-400 mt-1">↑ 8% from last month</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                                Active Projects
-                            </CardTitle>
-                            <div className="bg-purple-100 dark:bg-purple-900/20 p-2 rounded-full">
-                                <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-bold text-slate-900 dark:text-slate-100">24</div>
-                            <p className="text-sm text-green-600 dark:text-green-400 mt-1">↑ 3 new this week</p>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Recent Activity */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Recent Activity</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4">
-                            {[
-                                { action: 'New user registered', time: '2 minutes ago', icon: '👤', color: 'bg-blue-50 dark:bg-blue-900/20' },
-                                { action: 'Project "Website Redesign" completed', time: '1 hour ago', icon: '✅', color: 'bg-green-50 dark:bg-green-900/20' },
-                                { action: 'Invoice #1234 paid', time: '3 hours ago', icon: '💰', color: 'bg-yellow-50 dark:bg-yellow-900/20' },
-                                { action: 'New comment on "Mobile App"', time: '5 hours ago', icon: '💬', color: 'bg-purple-50 dark:bg-purple-900/20' },
-                            ].map((activity, index) => (
-                                <div key={index} className={`flex items-center gap-4 p-3 rounded-lg transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 ${activity.color}`}>
-                                    <div className="text-2xl">{activity.icon}</div>
-                                    <div className="flex-1">
-                                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{activity.action}</p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">{activity.time}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-            </main>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
         </div>
+      </div>
     );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-600">Welcome back, {session?.user?.name}</p>
+          </div>
+          <Button variant="outline" onClick={() => signOut()}>
+            <LogOut className="mr-2 h-4 w-4" />
+            Sign Out
+          </Button>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Phone Number Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Phone className="h-5 w-5" />
+                Phone Number
+              </CardTitle>
+              <CardDescription>
+                Enter your phone number to receive call reminders for upcoming events
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSavePhoneNumber} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="+1234567890"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-gray-500">
+                    Format: +[country code][number] (e.g., +1234567890)
+                  </p>
+                </div>
+
+                {message && (
+                  <Alert variant={message.type === 'error' ? 'destructive' : 'default'}>
+                    {message.type === 'success' ? (
+                      <CheckCircle2 className="h-4 w-4" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4" />
+                    )}
+                    <AlertDescription>{message.text}</AlertDescription>
+                  </Alert>
+                )}
+
+                <Button type="submit" disabled={loading} className="w-full">
+                  {loading ? 'Saving...' : 'Save Phone Number'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Account Info Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Account Information
+              </CardTitle>
+              <CardDescription>Your connected Google account details</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-4">
+                {session?.user?.image && (
+                  <img
+                    src={session.user.image}
+                    alt="Profile"
+                    className="h-16 w-16 rounded-full"
+                  />
+                )}
+                <div>
+                  <p className="font-medium">{session?.user?.name}</p>
+                  <p className="text-sm text-gray-500">{session?.user?.email}</p>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t">
+                <div className="flex items-center gap-2 text-green-600">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span className="text-sm font-medium">Google Calendar Connected</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  We'll check your calendar every 5 minutes for upcoming events
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Upcoming Events */}
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Upcoming Events
+            </CardTitle>
+            <CardDescription>Events from your Google Calendar</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingEvents ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+                <p className="mt-4 text-gray-600">Loading events...</p>
+              </div>
+            ) : upcomingEvents.length > 0 ? (
+              <div className="space-y-3">
+                {upcomingEvents.map((event, index) => (
+                  <div
+                    key={index}
+                    className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-medium">{event.summary || 'Untitled Event'}</h3>
+                        <p className="text-sm text-gray-500">
+                          {formatEventTime(event.start.dateTime || event.start.date)}
+                        </p>
+                        {event.location && (
+                          <p className="text-xs text-gray-400 mt-1">📍 {event.location}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No upcoming events found</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
 }
